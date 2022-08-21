@@ -3,7 +3,7 @@ date_added: 2021-07-14
 title: Treatlife 1.5A 4 Speed Ceiling 
 model: DS02F
 image: /assets/images/treatlife_DS02F.jpg
-template9: '{"NAME":"DS02F","GPIO":[0,2272,0,2304,0,0,0,0,0,0,0,0,0,0],"FLAG":0,"BASE":54,"CMND":"TuyaMCU 11,1|SO97 1|SO68 0"}' 
+template9: '{"NAME":"DS02F","GPIO":[0,2272,0,2304,0,0,0,0,0,0,0,0,0,0],"FLAG":0,"BASE":54,"CMND":"TuyaMCU 11,1|SO97 1|SO26 1"}' 
 link: https://www.amazon.com/gp/product/B08P5D3ZKW
 link2: 
 mlink: https://www.treatlife.tech/collections/smart-dimmer-switch/products/smart-ceiling-fan-control-and-light-dimmer-switch-neutral-wire-needed-treatlife-single-pole-wi-fi-light-switch-fan-speed-control-works-with-alexa-google-assistant-schedule-remote-control
@@ -13,16 +13,17 @@ category: switch
 type: Fan Switch
 standard: us
 ---
-This is not for the feint of heart, this device comes with a custom Tuya chip, which is not ESP based. Luckily, the main board has the appropriate footprint for an ESP-12F. Instructions for a similar device can be found [here](https://community.home-assistant.io/t/treatlife-dual-outlet-indoor-dimmer-plug-wb3s-to-esp-12-transplant/256798)
+This is not for the faint of heart, this device comes with a custom Tuya chip, which is not ESP based. Luckily, the main board has the appropriate footprint for an ESP-12F. Instructions for a similar device can be found [here](https://community.home-assistant.io/t/treatlife-dual-outlet-indoor-dimmer-plug-wb3s-to-esp-12-transplant/256798)
 
+# Basic Configuration
 These commands are applied together with the template:
 
 ```console
-backlog SetOption97 1; tuyamcu 11,1; SetOption59 1; SetOption68 0
+backlog tuyamcu 11,1; SetOption97 1; SetOption26 1;
 ```
-These commands set the baud rate to 115200, bind the Tasmota software to the appropriate channel for control of the switch, set PWM to a single light, and adds an additional topic for state. More information can be found in the Tasmota TuyaMCU guide. 
+These commands bind the Tasmota software to the appropriate Tuya datapoint (1) for control of the switch, set the baud rate to 115200, and ensure that state is consistently reported as `POWER1` (not `POWER`), whether or not the indicator LED toggle is configured. More information can be found in the [Tasmota TuyaMCU guide](https://tasmota.github.io/docs/TuyaMCU/). 
 
-Set up a rule to report speed state based on information from the TuyaMCU
+After activaing the template, set up a rule to report speed state based on information from the TuyaMCU:
 
 ```console
 Backlog Rule1 on tuyareceived#dptype4id3 do publish stat/%topic%/speed %value% endon; Rule1 1
@@ -30,6 +31,15 @@ Backlog Rule1 on tuyareceived#dptype4id3 do publish stat/%topic%/speed %value% e
 
 This will monitor TuyaMCU messages for changes to the speed of the fan and publish them to MQTT. Additional information can be found in the TuyaMCU Guide as well as the DS02S guide.
 
+# Optional Additional Configuration
+
+## Enable the indicator light toggle
+
+```console
+TuyaMCU 12,101
+```
+
+This binds the Tasmota software to the appropriate Tuya datapoint (101) for control of the indicator light as a second relay.
 
 ## Home Assistant 
 ### Using speed percentage
@@ -44,8 +54,8 @@ This will monitor TuyaMCU messages for changes to the speed of the fan and publi
     payload_off: "OFF"
     percentage_state_topic: "stat/%topic%/speed"
     percentage_command_topic: "cmnd/%topic%/tuyasend4"
-    percentage_command_template: "3,{{ value }}"
-    speed_range_max: 2
+    percentage_command_template: "3,{{ (value | int) - 1 }}"
+    speed_range_max: 4
     availability_topic: "tele/%topic%/LWT"
     payload_available: Online
     payload_not_available: Offline{% endraw %}
@@ -56,7 +66,7 @@ This will monitor TuyaMCU messages for changes to the speed of the fan and publi
   - platform: mqtt
     name: "TreatLife Fan"
     state_topic: "stat/%topic%/RESULT"
-    state_value_template: "{{ value_json.POWER }}"
+    state_value_template: "{{ value_json.POWER1 }}"
     command_topic: "cmnd/%topic%/POWER1"
     payload_on: "ON"
     payload_off: "OFF"
